@@ -17,20 +17,36 @@ app = typer.Typer()
 class CustomerDeletionManager:
     def __init__(self):
         self.state_file = "state/processed_customers.json"
-        self.processed_ids = self._load_processed_ids()
+        self.state = self._load_state()
+        self.processed_ids = self.state.get('processed_ids', set())
+        self.total_customers = self.state.get('total_customers', None)
         
-    def _load_processed_ids(self):
-        """Load set of previously processed customer IDs"""
+    def _load_state(self):
+        """Load state including processed IDs and total customers"""
         if os.path.exists(self.state_file):
             with open(self.state_file, 'r') as f:
-                return set(json.load(f))
-        return set()
+                state = json.load(f)
+                # Convert processed_ids list to set
+                if 'processed_ids' in state:
+                    state['processed_ids'] = set(state['processed_ids'])
+                return state
+        return {}
     
-    def _save_processed_ids(self):
-        """Save processed IDs to state file"""
+    def _save_state(self):
+        """Save state including processed IDs and total customers"""
         os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+        state = {
+            'processed_ids': list(self.processed_ids),
+            'total_customers': self.total_customers
+        }
         with open(self.state_file, 'w') as f:
-            json.dump(list(self.processed_ids), f)
+            json.dump(state, f)
+    
+    def set_total_customers(self, total):
+        """Set total customers only if not already set"""
+        if self.total_customers is None:
+            self.total_customers = total
+            self._save_state()
     
     def process_customers(self, customer_ids):
         """Process customer IDs with proper progress tracking"""
@@ -43,7 +59,7 @@ class CustomerDeletionManager:
             self.processed_ids.add(customer_id)
             
         # Save progress
-        self._save_processed_ids()
+        self._save_state()
 
 class CustomerDeleter:
     def __init__(
@@ -117,9 +133,14 @@ class CustomerDeleter:
     async def run(self):
         """Main execution logic."""
         async with aiohttp.ClientSession() as session:
-            # Get total count first
-            total_customers = await self.get_total_customers(session)
-            logger.info(f"Found {total_customers} total customers")
+            # Get total count only if not already stored
+            if self.state.total_customers is None:
+                total_customers = await self.get_total_customers(session)
+                self.state.set_total_customers(total_customers)
+            else:
+                total_customers = self.state.total_customers
+                
+            logger.info(f"Total customers to process: {total_customers}")
             logger.info(f"Already processed: {len(self.state.processed_ids)} customers")
 
             if self.dry_run:
