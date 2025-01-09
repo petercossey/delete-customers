@@ -16,8 +16,8 @@ Significant portions of this codebase were generated with the assistance of AI c
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/bigcommerce-customer-cleanup.git
-cd bigcommerce-customer-cleanup
+git clone https://github.com/petercossey/delete-customers
+cd delete-customers
 ```
 
 2. Create and activate a virtual environment:
