@@ -44,6 +44,8 @@ python delete_customers.py \
     --dry-run  # Remove this flag to actually delete customers
 ```
 
+Please note: you'll need to generate a store-level API account access token with the relevant Customer OAuth scopes. See [Store-level API accounts](https://developer.bigcommerce.com/docs/start/authentication/api-accounts#store-level-api-accounts)
+
 ## How It Works
 
 The script operates in two phases:
