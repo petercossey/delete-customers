@@ -1,7 +1,7 @@
 # Technical Requirements
 
 ## Overview
-This tool bulk deletes customers from a BigCommerce store while respecting API rate limits and handling large datasets efficiently.
+This tool bulk deletes customers from a BigCommerce store while respecting API rate limits and handling large datasets efficiently using a two-phase approach.
 
 ## API Constraints
 - Maximum 5 concurrent connections to BigCommerce API
@@ -13,22 +13,13 @@ This tool bulk deletes customers from a BigCommerce store while respecting API r
 
 ### Core Components
 
-#### State Manager
-Manages persistent state using a single JSON file:
-- Tracks all processed customer IDs
-- Handles state file I/O operations
-- Provides simple interface for checking and updating progress
-
-State File:
-- `processed_customers.json`: Set of all processed customer IDs
-
 #### CustomerDeleter
-Handles the main deletion logic:
-- Processes customers page by page (250 per request)
-- Groups deletions into configurable batch sizes (default 10)
-- Manages concurrent operations (default 5)
-- Implements rate limiting (default 150 requests/30sec)
-- Provides dry-run capability for testing
+Main class that handles:
+- Fetching all customer IDs (phase 1)
+- Processing deletions in batches (phase 2)
+- Rate limit management
+- Concurrent operations
+- Error handling and retries
 
 ### Configuration Parameters
 - `store_hash`: BigCommerce store identifier
@@ -37,37 +28,37 @@ Handles the main deletion logic:
 - `batch_size`: Customers per deletion request (default: 10)
 - `max_concurrent`: Maximum parallel operations (default: 5)
 - `dry_run`: Test mode without actual deletions
-- `state_dir`: Location for state files (default: "./state")
 
 ### Error Handling
 - Failed operations are logged with API response details
-- Exceptions during deletion are caught and logged
-- Script can be safely interrupted and resumed
+- Automatic retry on server errors (5xx)
+- Rate limit handling with backoff based on Retry-After header
 - Clear error messages for troubleshooting
+- Graceful handling of network timeouts
 
-### Recovery Capabilities
-The script is designed to be interrupt-safe:
-1. State is saved after each successful batch
-2. Already processed customers are automatically skipped
-3. Can resume from any point
-4. Maintains accurate progress counting
+### Two-Phase Operation
+1. Customer ID Collection Phase:
+   - Fetches all customer IDs using pagination
+   - 250 customers per page (API maximum)
+   - Maintains list of all customer IDs in memory
 
-### Memory Management
-- Processes customers in pages of 250
-- Only keeps processed IDs in memory
-- Writes progress to disk after each batch
-- Maintains constant memory usage regardless of total customer count
-
-### Progress Reporting
-- Shows total customer count at start
-- Displays already processed count on resume
-- Reports progress percentage after each batch
-- Indicates dry-run operations clearly
-- Provides final summary statistics
+2. Deletion Phase:
+   - Processes customers in configurable batch sizes
+   - Default batch size of 10 customers
+   - Tracks progress with percentage complete
+   - Provides detailed logging of operations
 
 ### Rate Limiting Strategy
 - Uses asyncio.sleep() between API calls
 - Sleep duration calculated as: 30 seconds / rate_limit
 - Concurrent operations managed via asyncio.Semaphore
 - Default rate of 150 requests per 30-second period
-- Configurable via command-line parameter
+- Respects API's 429 responses and Retry-After headers
+- Adds small delays between requests to prevent rate limit hits
+
+### Progress Reporting
+- Shows total customer count at start
+- Reports each page of customers fetched
+- Displays progress percentage during deletion
+- Indicates dry-run operations clearly
+- Provides final summary statistics

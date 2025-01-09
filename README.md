@@ -1,6 +1,6 @@
 # BigCommerce Customer Cleanup
 
-A script to bulk delete customers from a BigCommerce store. Handles large customer sets with resume capability and progress tracking.
+A script to bulk delete customers from a BigCommerce store. Handles large customer sets efficiently with rate limiting and concurrent operations.
 
 ⚠️ **WARNING: This script deletes customer data. Use with extreme caution.**
 
@@ -44,18 +44,18 @@ python delete_customers.py \
     --dry-run  # Remove this flag to actually delete customers
 ```
 
-## State Management
+## How It Works
 
-The script maintains state in a `state` directory to track progress and enable resume capability:
+The script operates in two phases:
+1. Fetches all customer IDs from the BigCommerce API using pagination
+2. Processes deletions in batches with automatic rate limiting and retries
 
-- `state/processed_customers.json`: Tracks all processed customer IDs
-
-To start fresh, remove the state directory:
-```bash
-rm -rf state/
-```
-
-The script will create a new state directory when it runs.
+Features:
+- Automatic rate limit handling with backoff
+- Concurrent operations for improved performance
+- Clear progress reporting
+- Dry-run mode for testing
+- Automatic retry on server errors
 
 ## Options
 
@@ -65,29 +65,31 @@ The script will create a new state directory when it runs.
 - `--batch-size`: Number of customers to delete in each batch (default: 10)
 - `--max-concurrent`: Maximum number of concurrent connections (default: 5)
 - `--dry-run`: Run in test mode without actually deleting customers (default: False)
-- `--state-dir`: Directory to store state files (default: "./state")
 
 ## Progress Reporting
 
 The script provides detailed progress information:
 ```
-2025-01-09 17:30:00,000 - INFO - Found 1500 total customers
-2025-01-09 17:30:00,100 - INFO - Already processed: 500 customers
-2025-01-09 17:30:00,200 - INFO - Processed 510/1500 customers (34.0%)
+2024-01-09 17:30:00,000 - INFO - Fetching all customer IDs...
+2024-01-09 17:30:00,100 - INFO - Fetched page 1 - Found 250 customers
+2024-01-09 17:30:00,200 - INFO - Fetched page 2 - Found 250 customers
+2024-01-09 17:30:00,300 - INFO - Found 500 customers to process
+2024-01-09 17:30:00,400 - INFO - Progress: 10/500 customers (2.0%)
+2024-01-09 17:30:00,500 - INFO - Progress: 20/500 customers (4.0%)
 ...
-2025-01-09 17:30:10,000 - INFO - Operation complete. Processed 1500/1500 customers (100.0%)
+2024-01-09 17:30:10,000 - INFO - Operation complete. Processed 500/500 customers (100.0%)
 ```
 
-## Memory Usage
+## Rate Limiting
 
-The script processes customers page by page instead of loading all customer IDs into memory at once:
-- ~2MB of disk space per million customer IDs
-- Small constant memory footprint regardless of total customer count
+The script automatically handles BigCommerce API rate limits:
+- Respects the 429 status code and Retry-After header
+- Implements automatic backoff when rate limited
+- Adds small delays between requests to prevent rate limit hits
 
-## Recovery
+## Error Handling
 
-If the script is interrupted, it can be restarted with the same parameters. It will:
-1. Load the list of already processed customers
-2. Skip any previously processed customers
-3. Continue processing remaining customers
-4. Show progress as a percentage of total customers
+- Automatically retries on server errors (5xx)
+- Handles rate limits with proper backoff
+- Clear error messages for troubleshooting
+- Graceful handling of network issues
